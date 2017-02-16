@@ -1,0 +1,130 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: chatapp
+objects:
+  - apiVersion: v1
+    kind: ImageStream
+    metadata:
+      name: chatapp
+  - apiVersion: v1
+    kind: ImageStream
+    metadata:
+      name: java
+    spec:
+      tags:
+      - from:
+          kind: DockerImage
+          name: java:openjdk-8-jdk-alpine
+        name: openjdk-8-jdk-alpine
+  - apiVersion: v1
+    kind: BuildConfig
+    metadata:
+      name: chatapp
+    spec:
+      source:
+        type: Binary
+        binary: {}
+      strategy:
+        type: Docker
+        dockerStrategy:
+          from:
+            kind: ImageStreamTag
+            name: 'java:openjdk-8-jdk-alpine'
+      output:
+        to:
+          kind: ImageStreamTag
+          name: 'chatapp:latest'
+      resources: {}
+  - apiVersion: v1
+    kind: DeploymentConfig
+    metadata:
+      name: chatapp
+      labels:
+        app: chatapp
+    selector:
+      app: chatapp
+      deploymentconfig: chatapp
+    spec:
+      replicas: 1
+      selector:
+        app: chatapp
+        deploymentconfig: chatapp
+      triggers:
+          - type: ConfigChange
+          - type: ImageChange
+            imageChangeParams:
+              automatic: true
+              containerNames:
+                - chatapp
+              from:
+                kind: ImageStreamTag
+                name: 'chatapp:latest'
+      strategy:
+        type: Rolling
+        rollingParams:
+          intervalSeconds: 1
+          maxSurge: 25%
+          maxUnavailable: 25%
+          timeoutSeconds: 600
+          updatePeriodSeconds: 1
+      template:
+        metadata:
+          labels:
+            app: chatapp
+            deploymentconfig: chatapp
+        spec:
+          containers:
+          - image: chatapp:latest
+            imagePullPolicy: Always
+            name: chatapp
+            ports:
+            - containerPort: 8080
+              protocol: TCP
+            resources: {}
+            terminationMessagePath: /dev/termination-log
+            readinessProbe:
+              httpGet:
+                path: /chatapp/api/chat/nodes
+                port: 8080
+                scheme: HTTP
+              initialDelaySeconds: 30
+              timeoutSeconds: 2
+              periodSeconds: 10
+              successThreshold: 1
+              failureThreshold: 6
+          dnsPolicy: ClusterFirst
+          restartPolicy: Always
+          securityContext: {}
+          terminationGracePeriodSeconds: 30
+  - apiVersion: v1
+    kind: Service
+    metadata:
+      name: chatapp
+      labels:
+        app: chatapp
+    spec:
+      ports:
+        - name: 80-tcp
+          protocol: TCP
+          port: 80
+          targetPort: 8080
+      selector:
+            app: chatapp
+            deploymentconfig: chatapp
+      type: ClusterIP
+      sessionAffinity: None
+  - apiVersion: v1
+    kind: Route
+    metadata:
+      name: chatapp
+      labels:
+        app: chatapp
+    spec:
+      to:
+        kind: Service
+        name: chatapp
+        weight: 100
+      port:
+        targetPort: 80-tcp
+      wildcardPolicy: None

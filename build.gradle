@@ -1,0 +1,14 @@
+apply plugin: 'war'
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '3.3'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    providedCompile 'com.hazelcast:hazelcast:3.7.5'
+    providedCompile 'javax:javaee-api:7.0'
+}
